@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>reset_ctrlboard</key>
+	<string>reset_ctrlboard</string>
+	<key>reset_measureboard</key>
+	<string>reset_measureboard</string>
+	<key>check_ctrlboard</key>
+	<string>check_ctrlboard_ready?</string>
+	<key>check_measureboard</key>
+	<string>check_measureboard_ready?</string>
+	<key>ctrl_turn_black_card</key>
+	<string>ctrl_turn_black_card</string>
+	<key>ctrl_turn_card_off</key>
+	<string>ctrl_turn_card(off)</string>
+</dict>
+</plist>
