@@ -1,0 +1,238 @@
+
+
+finishWithError(e) {
+	Atlas.Log.error("caught exception", e.className)
+
+	if ( e.class == "UserException" ) {
+		Atlas.Log.error("Custom Exception Behaviour")
+	}
+}
+
+exampleExeception()
+{
+	if :TRUE: {
+		raise Atlas.Exceptions.InternalError
+	}
+
+	if :TRUE: {
+		raise $#@!("UserException")
+	}
+
+}
+
+isProductionModel(){
+    test_mode_name = Atlas.Unit["test_mode_name"]
+    return test_mode_name == "Production"
+}
+
+configGlobal(){
+     Globals.csvHeader = {"Enable":0,"ItemName":1,"Device":2,"NeedShow":3,"Prefix":4,"Suffix":5,"Plugin":6,"Function":7,
+          "Command":8,"Delay":9,"Choose":10,"Max":11,"Min":12}
+}
+
+main()
+{
+
+     #*/
+     Atlas.Log.info("Start Test")
+     configGlobal()
+     
+     //打开主控制板
+     Atlas.call_plugin("Communication","OpenUart") #start test
+     //初始化主控制板
+     Atlas.call_plugin("Communication","MainUartInit") 
+     //打开压力控制板
+     Atlas.call_plugin("Communication","OpenPressUart")
+     Atlas.Log.info("Open Uart Success")
+     //打开测试板
+     Atlas.call_plugin("Communication","OpenSocket")
+     
+     unitID =  Atlas.Unit["unit_identifier"]
+
+     Atlas.Log.info("unitID:",unitID)
+     
+     if isProductionModel(){ #Production mode
+          #scan SN and
+          #SN = Atlas.execute_test("ScanSN",ScanSN,"Communication","ScanSN",{}) onError e -> finishWithError(e)
+
+          #SN = Atlas.call_plugin("Communication","ScanSN",{})
+          #ShowInWindow("Scaned SN:",SN)
+          SN = inputAlertView("Pls input SN:")
+          if !size(SN) == 6{
+               ShowInWindow("SN is Wrong","Pls input again")
+
+          }else{
+               Atlas.execute_test("RecordSN",RecordSN,SN,{}) onError e -> finishWithError(e)
+               
+               //传递SN
+               Atlas.call_plugin("Communication","GetSN",{"SN":SN}) #
+
+               //测试开始时候调用
+               //Atlas.call_plugin("Communication","waitForRealStart") #start test
+               Atlas.Log.info("current mode is Production")
+         
+               runTestItembyCSV() #core test in CSV
+          }
+
+
+     }else{
+          nullTestCount = inputAlertView("Pls input nullTest count:")
+          
+          if numerify(nullTestCount) < 1{
+               ShowInWindow("nullTest count is wrong.","Pls input again.")
+
+          }else{
+               Atlas.call_plugin("Communication","setParametersForNullTest",{"nullTestCount":nullTestCount})
+
+               Atlas.call_plugin("Communication","waitForRealStart") #start test
+               for index in range(0,numerify(nullTestCount)){
+                    runTestItembyCSV() #core test in CSV
+               }
+         }
+
+     }
+     
+     //测试结束的时候调用
+     //Atlas.call_plugin("Communication","waitForFinish")  #end test
+
+
+     //发送灯光
+       Atlas.call_plugin("Communication","responseTestResult")  #end test
+       Atlas.Log.info("Finished Test")
+
+     #*/
+}
+
+
+runTestItembyCSV(){
+     Globals.csv = BasicCSV.load(System.getenv("HOME") + "/Library/Atlas/Resources/sequence/"+"SABART_sequence.csv")
+     itemValues = "value"
+     for index in range(1,size(Globals.csv)){
+
+          Atlas.Log.info("csv index content-------",stringify(Globals.csv[index]),stringify(size(Globals.csv)))
+          
+          Enable = Globals.csv[index][Globals.csvHeader["Enable"]]
+          ItemName = Globals.csv[index][Globals.csvHeader["ItemName"]]
+          Device = Globals.csv[index][Globals.csvHeader["Device"]]
+
+          NeedShow = Globals.csv[index][Globals.csvHeader["NeedShow"]]
+          Prefix = Globals.csv[index][Globals.csvHeader["Prefix"]]
+          Suffix = Globals.csv[index][Globals.csvHeader["Suffix"]]
+
+          Plugin = Globals.csv[index][Globals.csvHeader["Plugin"]]
+          Function = Globals.csv[index][Globals.csvHeader["Function"]]
+          Command = Globals.csv[index][Globals.csvHeader["Command"]]
+          Delay = Globals.csv[index][Globals.csvHeader["Delay"]]
+          Choose  = Globals.csv[index][Globals.csvHeader["Choose"]]
+          Max   = Globals.csv[index][Globals.csvHeader["Max"]]
+          Min   = Globals.csv[index][Globals.csvHeader["Min"]]
+          testConfig = {"Device":Device,"Command":Command,"Delay":Delay,"TestName":ItemName,"Choose":Choose,"Suffix":Suffix,"Max":Max,"Min":Min}
+          
+          Atlas.Log.info("\n****************************\n",testConfig)
+         
+          if Enable == 1{
+
+                    if NeedShow == "YES"{
+                         myLocalLimits = Atlas.load_limits_file("limits/SABARTLimits.csv")
+      
+                         limit = myLocalLimits["MP"][ItemName]
+                         Atlas.Log.info(" ---- resistance limit --",limit)
+                         #resistance = Atlas.execute_test(ItemName,Atlas.call_plugin,Plugin,Function,{}) onError e -> finishWithError(e)
+                         
+                         #Atlas.Log.info("---command---value---",Function,resistance)
+                         
+                         //执行方法获取数据
+                         value = Atlas.call_plugin(Plugin,Function,testConfig)
+                         Atlas.Log.info("---command---value---",Function,value)
+                         
+                         Atlas.execute_test(Function,addRecord,ItemName,value,limit,testConfig) onError e -> finishWithError(e)
+                          #save the Total CSV DATA
+                         unitID =  Atlas.Unit["unit_identifier"]
+                         Globals.totalCSVPath = "/vault/Atlas/Summary_Unit1.csv"
+
+                         Atlas.Log.info(Globals.totalCSVPath)
+
+                         #Just for save toal CSV
+                         itemValues = itemValues + "," + stringify(value)
+
+                    }else{
+                         #res = Atlas.execute_test(ItemName,Atlas.call_plugin,Plugin,Function,testConfig) onError e -> finishWithError(e)
+                         #Atlas.Log.info("response in rush:",res)
+                         Atlas.call_plugin(Plugin,Function,testConfig)
+                            
+                  }
+                       
+          }
+                    
+      }
+
+      #Just for save toal CSV
+       itemValues = tokenize(itemValues,",")
+       ItemData = [itemValues]
+       OriData= BasicCSV.load(Globals.totalCSVPath)
+       file = BasicCSV.save(Globals.totalCSVPath,OriData + ItemData)
+                         
+
+}
+
+
+RecordSN(SN,config){
+     # SN = Atlas.call_plugin(plugin,function,config)
+     Atlas.Log.info("SN:",SN)
+     Atlas.add_device_attribute("SN",SN);
+}
+
+addRecord(item,res,limit){
+     #value = res[1:5]  # numerify
+     Atlas.create_record([item],numerify(res), limit["units"], limit)
+
+}
+
+
+ShowInWindow(text,text1){
+     layout = []
+     label = {
+        "type": "label",
+        "text" : text
+     }
+     #type = {
+     # "type" : "field",
+     #"id" : "input"   #輸入欄位的變數
+     #}
+     label1 = {
+        "type": "label",
+        "text" : text1
+     }
+
+     layout = layout + [label] +[label1]
+
+     custom = {
+     "type" : "custom",
+     "layout" : layout
+     }
+    value = Atlas.call_app("show-form", custom)
+}
+
+inputAlertView(text){
+     layout = []
+     label = {
+          "type": "label",
+          "text" : text
+          }
+     type = {
+        "type" : "field",
+        "id" : "input"   #输入相关的信息
+     }
+
+     layout = layout + [label] +[type]
+
+     custom = {
+          "type" : "custom",
+          "layout" : layout
+     }
+     value = Atlas.call_app("show-form", custom)
+     return value["input"]
+}
+
+
+

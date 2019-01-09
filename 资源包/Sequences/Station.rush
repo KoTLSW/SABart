@@ -1,0 +1,165 @@
+# Atlas Logging:
+#	 =>	Atlas.Log.info(arguemnts...)
+#	 =>	Atlas.Log.debug(arguments...)
+#	 =>	Atlas.Log.error(arguments...)
+
+# Atlas Launch Station Plugin:
+#	 =>	Altas.launch_plugin(bundle, plugin)
+#	 =>	Atlas.launch_plugin(bundle, plugin, name)
+#	 =>	Atlas.launch_plugin(bundle, plugin, name, setup_parameters)
+
+# Atlas Teardown Station Plugin:
+#	 =>	Altas.teardown_plugin(name)
+#	 =>	Altas.teardown_plugin(name, teardown_parameters)
+
+#
+# App Setup:
+# * Called when app first connects to the atlas core and before the station is started
+# * Called when app first connects to the atlas core and before the station is started
+# 
+
+#Atlas.Unit.user_info
+
+app_setup(app)
+{
+  app.settings = {
+    "station-name" : "SABART Station",
+    # four test-modes
+    #LineBringup --- SustainingAudit ---Production -- Reliability
+    "test-modes":["Production","Reliability","SustainingAudit"],
+    "start-button" : {
+    "units" : [
+        {
+          "identifier" : "Unit 1"
+        }
+      ]
+    }
+  }
+}
+
+#
+# Station Setup:
+# * Called when core is starting your station for the first time (app start)
+# 
+
+station_setup()
+{
+	# Log : Call takes any types and is variable argument
+	# Atlas.Log.info(arguemnts...)
+	# Atlas.Log.debug(arguments...)
+	# Atlas.Log.error(arguments...)
+	Atlas.Log.info("Setting up station")
+
+     Globals.finishedCount = 0
+
+	# Define a dictionary to configure station level Bar
+	barConfig = {
+		"delay"	 : 0.5,
+		"repeat" : 5		 
+	} 
+
+	# Plugin Launch : Station plugin are visible to all units.
+	# Altas.launch_plugin(bundle, plugin)
+	# Atlas.launch_plugin(bundle, plugin, name)
+	# Atlas.launch_plugin(bundle, plugin, name, setup_parameters)
+	Atlas.launch_plugin("SABART", "Communication", "Communication", barConfig)
+}
+
+#
+# Station Teardown:
+# * Called when core is tearing down your station (app quit)
+# 
+
+station_teardown()
+{
+	Atlas.Log.info("Station teardown")
+	
+	# Plugin Teardown :
+	# Altas.teardown_plugin(name)
+	# Altas.teardown_plugin(name, teardown_parameters)
+	Atlas.teardown_plugin("Communication")
+
+}
+
+#
+# Unit Setup:
+# * Called only when core receives new unit.
+# 
+
+unit_setup(unit)
+{
+     
+     
+	Atlas.Log.info("Started", unit)
+
+	# Sequence Selection : Select the sequence to run the unit, can branch and select a GRR unit based on unit context info
+	Atlas.set_sequence(unit, "SABART.rush")
+
+	# Plugin Launch : launches plugin visible only to this unit
+	# Altas.launch_plugin(unit, bundle, plugin)
+	# Atlas.launch_plugin(unit, bundle, plugin, name)
+	# Atlas.launch_plugin(unit, bundle, plugin, name, setup_parameters)
+     
+     configArray = PList.load(System.getenv("HOME") +  "/Library/Atlas/Configs/SABARTConfig" + ".plist")
+     
+
+     Atlas.Log.info("SABARTConfig",configArray);
+     #Atlas.Log.info("Current test Mode:",unit["test_mode"]);
+     #Atlas.Log.info("Current Mode:",unit["mode"]);
+     Atlas.Log.info("Current test_Mode_name:",unit["test_mode_name"]);
+     Atlas.Log.info("Current Mode_name:",stringify(unit));
+
+
+
+
+     SABARTConfig = {}
+     if unit["unit_identifier"] == "Unit 1"{
+         
+       SABARTConfig = configArray[0]
+  
+    }
+    else{
+
+
+    }
+    
+    
+	Atlas.launch_plugin(unit, "SABART", "Communication", "Communication",SABARTConfig)
+}
+
+
+group_setup(group)
+{
+     Atlas.Log.info("Setting up Group")
+          
+          for unit in group.units {
+               unit_setup(unit)
+               }
+}
+
+group_teardown(group)
+{
+     Atlas.Log.info("Station teardown")
+}
+
+#
+# Unit Setup:
+# * <Fill In>
+# 
+
+unit_teardown(unit)
+{
+	Atlas.Log.info(unit, "Finished")
+
+}
+
+finishWithError(e) {
+     Atlas.Log.error("caught exception", e.className)
+          
+     if ( e.class == "UserException" ) {
+         Atlas.Log.error("Custom Exception Behaviour")
+     }
+}
+
+
+
